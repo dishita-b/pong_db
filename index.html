@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pong by @Dishita</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --glow-a: #00ffe7;
+    --glow-b: #ff6b35;
+    --white: #f0f0f0;
+    --mid: #888;
+    --panel: rgba(255,255,255,0.03);
+  }
+
+  body {
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+    color: var(--white);
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  #header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 800px;
+    padding: 0 10px 10px;
+  }
+
+  .player-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+  .player-label.a { color: var(--glow-a); }
+  .player-label.b { color: var(--glow-b); }
+
+  #scoreboard {
+    display: flex;
+    gap: 40px;
+    align-items: center;
+  }
+
+  .score {
+    font-family: 'Orbitron', monospace;
+    font-size: 48px;
+    font-weight: 900;
+    line-height: 1;
+    text-shadow: 0 0 20px currentColor;
+    transition: transform 0.1s;
+  }
+  .score.a { color: var(--glow-a); }
+  .score.b { color: var(--glow-b); }
+  .score.pop { transform: scale(1.4); }
+
+  .score-divider {
+    font-size: 32px;
+    opacity: 0.2;
+    font-family: 'Orbitron', monospace;
+  }
+
+  #canvas-wrapper {
+    position: relative;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 4px;
+    box-shadow:
+      0 0 40px rgba(0,255,231,0.05),
+      0 0 80px rgba(0,0,0,0.8),
+      inset 0 0 60px rgba(0,0,0,0.5);
+  }
+
+  canvas {
+    display: block;
+    border-radius: 3px;
+  }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10,10,15,0.88);
+    border-radius: 3px;
+    gap: 16px;
+    backdrop-filter: blur(4px);
+  }
+
+  #overlay.hidden { display: none; }
+
+  #overlay-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 42px;
+    font-weight: 900;
+    letter-spacing: 6px;
+    text-align: center;
+    line-height: 1.1;
+  }
+
+  #overlay-sub {
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: var(--mid);
+    text-align: center;
+  }
+
+  #start-btn {
+    margin-top: 8px;
+    padding: 12px 40px;
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    background: transparent;
+    border: 1px solid var(--glow-a);
+    color: var(--glow-a);
+    cursor: pointer;
+    border-radius: 2px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    box-shadow: 0 0 20px rgba(0,255,231,0.2), inset 0 0 20px rgba(0,255,231,0.05);
+  }
+
+  #start-btn:hover {
+    background: rgba(0,255,231,0.1);
+    box-shadow: 0 0 30px rgba(0,255,231,0.4), inset 0 0 20px rgba(0,255,231,0.1);
+  }
+
+  #controls {
+    display: flex;
+    justify-content: space-between;
+    width: 800px;
+    padding: 10px 10px 0;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--mid);
+  }
+
+  .ctrl { display: flex; gap: 8px; align-items: center; }
+  .key {
+    display: inline-block;
+    padding: 2px 7px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 3px;
+    font-size: 10px;
+    background: rgba(255,255,255,0.05);
+  }
+  .ctrl.a .key { border-color: var(--glow-a); color: var(--glow-a); }
+  .ctrl.b .key { border-color: var(--glow-b); color: var(--glow-b); }
+
+  #winner-label {
+    font-size: 13px;
+    letter-spacing: 3px;
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <span class="player-label a">Player A</span>
+  <div id="scoreboard">
+    <span class="score a" id="score-a">0</span>
+    <span class="score-divider">:</span>
+    <span class="score b" id="score-b">0</span>
+  </div>
+  <span class="player-label b">Player B</span>
+</div>
+
+<div id="canvas-wrapper">
+  <canvas id="c" width="800" height="500"></canvas>
+
+  <div id="overlay">
+    <div id="overlay-title" style="color: var(--glow-a)">PONG</div>
+    <div id="winner-label" style="display:none"></div>
+    <div id="overlay-sub">First to 10 wins</div>
+    <button id="start-btn">PLAY</button>
+  </div>
+</div>
+
+<div id="controls">
+  <div class="ctrl a"><span class="key">W</span><span class="key">S</span> Player A</div>
+  <div style="color:rgba(255,255,255,0.2); font-size:10px; letter-spacing:1px">First to 10 wins · Press SPACE to restart</div>
+  <div class="ctrl b">Player B <span class="key">↑</span><span class="key">↓</span></div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const PADDLE_W = 12, PADDLE_H = 80, PADDLE_SPEED = 6;
+const BALL_SIZE = 12;
+const WIN_SCORE = 10;
+
+const COLOR_A = '#00ffe7';
+const COLOR_B = '#ff6b35';
+const COLOR_BALL = '#f0f0f0';
+
+let state, keys = {}, gameRunning = false, gameOver = false;
+
+function newState() {
+  return {
+    pa: { x: 30, y: H/2 - PADDLE_H/2 },
+    pb: { x: W - 30 - PADDLE_W, y: H/2 - PADDLE_H/2 },
+    ball: { x: W/2, y: H/2, dx: 4 * (Math.random() > 0.5 ? 1 : -1), dy: 3 * (Math.random() > 0.5 ? 1 : -1) },
+    scoreA: 0,
+    scoreB: 0,
+  };
+}
+
+function resetBall(dir) {
+  state.ball = {
+    x: W/2, y: H/2,
+    dx: 4 * dir,
+    dy: (Math.random() * 3 + 2) * (Math.random() > 0.5 ? 1 : -1)
+  };
+}
+
+function updateScoreEl(id, val, color) {
+  const el = document.getElementById(id);
+  el.textContent = val;
+  el.classList.add('pop');
+  setTimeout(() => el.classList.remove('pop'), 120);
+}
+
+document.getElementById('start-btn').addEventListener('click', startGame);
+
+function startGame() {
+  state = newState();
+  document.getElementById('score-a').textContent = '0';
+  document.getElementById('score-b').textContent = '0';
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('winner-label').style.display = 'none';
+  gameRunning = true;
+  gameOver = false;
+}
+
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (e.key === ' ' && gameOver) startGame();
+  if (['ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
+});
+document.addEventListener('keyup', e => keys[e.key] = false);
+
+function drawPaddle(x, y, color) {
+  // Glow
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(x, y, PADDLE_W, PADDLE_H, 3);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+function drawBall(x, y) {
+  ctx.shadowColor = COLOR_BALL;
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = COLOR_BALL;
+  ctx.beginPath();
+  ctx.roundRect(x - BALL_SIZE/2, y - BALL_SIZE/2, BALL_SIZE, BALL_SIZE, 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+function drawNet() {
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 10]);
+  ctx.beginPath();
+  ctx.moveTo(W/2, 0);
+  ctx.lineTo(W/2, H);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+
+function update() {
+  if (!gameRunning) return;
+
+  const { pa, pb, ball } = state;
+
+  // Paddle A (W/S)
+  if (keys['w'] || keys['W']) pa.y -= PADDLE_SPEED;
+  if (keys['s'] || keys['S']) pa.y += PADDLE_SPEED;
+  pa.y = clamp(pa.y, 0, H - PADDLE_H);
+
+  // Paddle B (Arrow keys)
+  if (keys['ArrowUp']) pb.y -= PADDLE_SPEED;
+  if (keys['ArrowDown']) pb.y += PADDLE_SPEED;
+  pb.y = clamp(pb.y, 0, H - PADDLE_H);
+
+  // Ball movement
+  ball.x += ball.dx;
+  ball.y += ball.dy;
+
+  // Top / bottom walls
+  if (ball.y - BALL_SIZE/2 <= 0) { ball.y = BALL_SIZE/2; ball.dy *= -1; }
+  if (ball.y + BALL_SIZE/2 >= H) { ball.y = H - BALL_SIZE/2; ball.dy *= -1; }
+
+  // Paddle A collision
+  if (ball.x - BALL_SIZE/2 <= pa.x + PADDLE_W &&
+      ball.x - BALL_SIZE/2 >= pa.x &&
+      ball.y >= pa.y && ball.y <= pa.y + PADDLE_H) {
+    ball.x = pa.x + PADDLE_W + BALL_SIZE/2;
+    ball.dx = Math.abs(ball.dx) * 1.05;
+    ball.dy += ((ball.y - (pa.y + PADDLE_H/2)) / (PADDLE_H/2)) * 2;
+    ball.dx = clamp(ball.dx, -12, 12);
+    ball.dy = clamp(ball.dy, -8, 8);
+  }
+
+  // Paddle B collision
+  if (ball.x + BALL_SIZE/2 >= pb.x &&
+      ball.x + BALL_SIZE/2 <= pb.x + PADDLE_W &&
+      ball.y >= pb.y && ball.y <= pb.y + PADDLE_H) {
+    ball.x = pb.x - BALL_SIZE/2;
+    ball.dx = -Math.abs(ball.dx) * 1.05;
+    ball.dy += ((ball.y - (pb.y + PADDLE_H/2)) / (PADDLE_H/2)) * 2;
+    ball.dx = clamp(ball.dx, -12, 12);
+    ball.dy = clamp(ball.dy, -8, 8);
+  }
+
+  // Scoring
+  if (ball.x < 0) {
+    state.scoreB++;
+    updateScoreEl('score-b', state.scoreB, COLOR_B);
+    if (state.scoreB >= WIN_SCORE) { endGame('Player B Wins!', COLOR_B); return; }
+    resetBall(1);
+  }
+  if (ball.x > W) {
+    state.scoreA++;
+    updateScoreEl('score-a', state.scoreA, COLOR_A);
+    if (state.scoreA >= WIN_SCORE) { endGame('Player A Wins!', COLOR_A); return; }
+    resetBall(-1);
+  }
+}
+
+function endGame(msg, color) {
+  gameRunning = false;
+  gameOver = true;
+  const overlay = document.getElementById('overlay');
+  overlay.classList.remove('hidden');
+  const title = document.getElementById('overlay-title');
+  title.textContent = msg;
+  title.style.color = color;
+  document.getElementById('winner-label').style.display = 'block';
+  document.getElementById('winner-label').textContent = '🏆';
+  document.getElementById('overlay-sub').textContent = 'Press SPACE or click to play again';
+  document.getElementById('start-btn').textContent = 'PLAY AGAIN';
+}
+
+function draw() {
+  // Background
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle court glow
+  const gradA = ctx.createRadialGradient(80, H/2, 0, 80, H/2, 200);
+  gradA.addColorStop(0, 'rgba(0,255,231,0.03)');
+  gradA.addColorStop(1, 'transparent');
+  ctx.fillStyle = gradA;
+  ctx.fillRect(0, 0, W, H);
+
+  const gradB = ctx.createRadialGradient(W-80, H/2, 0, W-80, H/2, 200);
+  gradB.addColorStop(0, 'rgba(255,107,53,0.03)');
+  gradB.addColorStop(1, 'transparent');
+  ctx.fillStyle = gradB;
+  ctx.fillRect(0, 0, W, H);
+
+  drawNet();
+
+  if (state) {
+    drawPaddle(state.pa.x, state.pa.y, COLOR_A);
+    drawPaddle(state.pb.x, state.pb.y, COLOR_B);
+    drawBall(state.ball.x, state.ball.y);
+  }
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// Init
+state = newState();
+loop();
+</script>
+</body>
+</html>
