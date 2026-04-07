@@ -2,7 +2,7 @@
 
 Two players. One keyboard. A ball that does not forgive sloppy paddle placement.
 
-Play in your browser: https://your-live-link-here.netlify.app — no install required.
+Play in your browser: https://dishita-b.github.io/pong_db/ — no install required.
 
 ---
 
